@@ -1,0 +1,39 @@
+# Fase en que se instala Powershell Core y el módulo ImportExcel, y se convierte el fichero
+# XLSX a CSV
+FROM ubuntu:jammy AS ubuntu-pwsh
+
+RUN apt update && apt install wget -y
+
+# instalar Powershell Core con un script
+WORKDIR /root
+COPY ./script-instalacion-pwsh.optimizado.sh .
+RUN chmod u+x script-instalacion-pwsh.optimizado.sh && \
+	sh -c ./script-instalacion-pwsh.optimizado.sh && \
+	rm script-instalacion-pwsh.optimizado.sh
+
+# instalar el módulo ImportExcel con un script
+COPY ./script-instalacion-modulos.optimizado.sh .
+RUN chmod u+x script-instalacion-modulos.optimizado.sh && \
+	sh -c ./script-instalacion-modulos.optimizado.sh && \
+	rm script-instalacion-modulos.optimizado.sh
+
+# usamos un script para convertir el archivo XLSX en CSV y dejarlo en el raíz del sistema de 
+# ficheros, así aumenta la modularidad del código y es posible añadir otras funcionalidades más 
+# fácilmente
+WORKDIR /
+COPY fichero.xlsx .
+COPY script-pwsh.ps1 .
+RUN pwsh -c ./script-pwsh.ps1
+
+# fase que recibe el fichero CSV, no tiene Powershell instalado
+FROM ubuntu:jammy
+
+ENTRYPOINT ["/script-mostrar-csv.sh"]
+
+WORKDIR /
+# script que muestra el contenido del archivo CSV
+COPY script-mostrar-csv.sh .
+RUN chmod u+x script-mostrar-csv.sh
+
+# obtener el fichero CSV creado por ubuntu-pwsh
+COPY --from=ubuntu-pwsh /fichero.csv .
